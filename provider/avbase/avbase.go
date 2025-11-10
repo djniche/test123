@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand" // 👈 新增：用于随机选择UA
 	"net/url"
 	"path"
 	"sort"
 	"strings"
-	"time"
+	"time" // 👈 新增：用于设置随机种子
 
 	"github.com/gocolly/colly/v2"
 	"golang.org/x/text/language"
@@ -39,11 +40,20 @@ const (
 )
 
 const (
-	baseURL      = "https://www.avbase.net/"
-	movieURL     = "https://www.avbase.net/works/%s"
-	movieAPIURL  = "https://www.avbase.net/_next/data/%s/works/%s.json?id=%s"
-	searchAPIURL = "https://www.avbase.net/_next/data/%s/works.json?q=%s"
+	baseURL      = "https://base.djniche2.eu.org/"
+	movieURL     = "https://base.djniche2.eu.org/works/%s"
+	movieAPIURL  = "https://base.djniche2.eu.org/_next/data/%s/works/%s.json?id=%s"
+	searchAPIURL = "https://base.djniche2.eu.org/_next/data/%s/works.json?q=%s"
 )
+
+// 定义一个 User-Agent 列表用于随机选择
+var randomUserAgents = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+}
 
 type AVBase struct {
 	*fetch.Fetcher
@@ -53,13 +63,23 @@ type AVBase struct {
 }
 
 func New() *AVBase {
+	// 设置随机种子，确保每次运行时UA的选择是随机的
+	rand.Seed(time.Now().UnixNano())
+	
+	// 随机选择一个 User-Agent
+	randomUA := randomUserAgents[rand.Intn(len(randomUserAgents))]
+	
+	// 构建包含随机UA的请求头
+	headers := map[string]string{
+		"Referer":    baseURL,
+		"User-Agent": randomUA, // 👈 在这里设置了随机的 User-Agent
+	}
+	
 	return &AVBase{
 		Fetcher: fetch.Default(&fetch.Config{SkipVerify: true}),
 		Scraper: scraper.NewDefaultScraper(
 			Name, baseURL, Priority, language.Japanese,
-			scraper.WithHeaders(map[string]string{
-				"Referer": baseURL,
-			})),
+			scraper.WithHeaders(headers)), // 👈 使用新的headers配置Scraper
 		single: singledo.NewSingle(2 * time.Hour),
 		providers: map[string]provider.MovieProvider{
 			"duga":    duga.New(),
